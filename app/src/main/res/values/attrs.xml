@@ -1,0 +1,22 @@
+<resources>
+    <declare-styleable name="DropIndicator">
+        <attr name="color1" format="color"/>
+        <attr name="color2" format="color"/>
+        <attr name="color3" format="color"/>
+        <attr name="color4" format="color"/>
+        <attr name="click_color" format="color"/>
+        <attr name="circle_color" format="color"/>
+        <attr name="radius" format="dimension"/>
+        <attr name="scale" format="float"/>
+        <attr name="duration" format="integer"/>
+    </declare-styleable>
+
+    <declare-styleable name="MusicLoadingView">
+        <attr name="loading_radius" format="dimension" />
+        <attr name="loading_length" format="dimension" />
+        <attr name="loading_image_name" format="string" />
+        <attr name="loading_content_color" format="color" />
+        <attr name="loading_frame_color" format="color" />
+        <attr name="loading_message_color" format="color"/>
+    </declare-styleable>
+</resources>
