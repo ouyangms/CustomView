@@ -7,8 +7,7 @@ import android.view.View;
 import android.widget.Button;
 
 import com.lydia.loyouyang.customviewlearning.customview.dropIndicator.DropIndicatorActivity;
-import com.lydia.loyouyang.customviewlearning.customview.musicloading.MusicLoadingActivity;
-import com.lydia.loyouyang.customviewlearning.customview.musicloading.MusicLoadingView;
+import com.lydia.loyouyang.customviewlearning.customview.musicloading.LoadingActivity;
 
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener{
@@ -20,8 +19,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         setContentView(R.layout.activity_main);
         Button dropIndicator = findViewById(R.id.drop_indication);
         Button musicLoading = findViewById(R.id.music_loading);
+
         dropIndicator.setOnClickListener(this);
         musicLoading.setOnClickListener(this);
+
 
     }
 
@@ -32,7 +33,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 startActivity(DropIndicatorActivity.class);
                 break;
             case R.id.music_loading:
-                startActivity(MusicLoadingActivity.class);
+                startActivity(LoadingActivity.class);
                 break;
             default:
                     break;

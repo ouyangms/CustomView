@@ -11,12 +11,15 @@
         <attr name="duration" format="integer"/>
     </declare-styleable>
 
-    <declare-styleable name="MusicLoadingView">
+    <declare-styleable name="LoadingView">
         <attr name="loading_radius" format="dimension" />
         <attr name="loading_length" format="dimension" />
         <attr name="loading_image_name" format="string" />
         <attr name="loading_content_color" format="color" />
         <attr name="loading_frame_color" format="color" />
         <attr name="loading_message_color" format="color"/>
+        <attr name="small_image" format="reference" />
+        <attr name="middle_image" format="reference"/>
+        <attr name="large_image" format="reference" />
     </declare-styleable>
 </resources>

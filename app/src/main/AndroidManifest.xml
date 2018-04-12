@@ -15,7 +15,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".customview.musicloading.MusicLoadingActivity" />
+        <activity android:name=".customview.musicloading.LoadingActivity" />
         <activity android:name=".customview.dropIndicator.DropIndicatorActivity" />
     </application>
 
