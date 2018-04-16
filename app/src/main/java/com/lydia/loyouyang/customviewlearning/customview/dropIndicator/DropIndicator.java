@@ -25,6 +25,7 @@ public class DropIndicator extends ViewGroup {
     private int circleColor;
     private int clickColor;
     private Paint mClickPaint;
+    private Paint mTouchedBongPaint;
     private int duration;
     private Paint mPaintCircle;
     private Paint mPaint;
@@ -44,7 +45,7 @@ public class DropIndicator extends ViewGroup {
     private XPoint p2, p4;
     private YPoint p1, p3;
     private float mc;
-    private float radius;
+    private float mRadius;
     private int[] roundColors = new int[4];
     private float div;
     private float scale = 0.8f;
@@ -54,11 +55,11 @@ public class DropIndicator extends ViewGroup {
     private ViewPager mViewPager;
     private ViewPager.OnPageChangeListener onPageChangeListener;
     private int viewPagerState;
-    public static final int SCROLL_STATE_IDLE = 0;
-    public static final int SCROLL_STATE_DRAGGING = 1;
-    public static final int SCROLL_STATE_SETTLING = 2;
     private String TAG = "DropIndicator";
     private boolean animating;
+    private boolean bonging = false;
+
+    private Rect[] childrenRects;
 
     public DropIndicator(Context context) {
         this(context, null);
@@ -77,13 +78,13 @@ public class DropIndicator extends ViewGroup {
         roundColors[3] = typedArray.getColor(R.styleable.DropIndicator_color4, Color.parseColor("#B034A853"));
         clickColor = typedArray.getColor(R.styleable.DropIndicator_click_color, Color.WHITE);
         circleColor = typedArray.getColor(R.styleable.DropIndicator_circle_color, Color.GRAY);
-        radius = typedArray.getDimension(R.styleable.DropIndicator_radius, 50);
+        mRadius = typedArray.getDimension(R.styleable.DropIndicator_radius, 50);
         duration = typedArray.getInteger(R.styleable.DropIndicator_duration, 1000);
         scale = typedArray.getFloat(R.styleable.DropIndicator_scale, 0.8f);
         typedArray.recycle();
-        f = new float[roundColors.length][3];
+        f = new float[2][3];
         result = new float[3];
-        ratio = radius;
+        ratio = mRadius;
         mc = (float) (c * ratio);
         mPaintCircle = new Paint();
         mPaintCircle.setColor(circleColor);
@@ -92,10 +93,13 @@ public class DropIndicator extends ViewGroup {
         mPaintCircle.setStrokeWidth(3);
 
         mClickPaint = new Paint();
-        mClickPaint.setColor(clickColor);
+        mClickPaint.setColor(Color.GRAY);
         mClickPaint.setStyle(Paint.Style.STROKE);
         mClickPaint.setAntiAlias(true);
-        mClickPaint.setStrokeWidth(radius / 2);
+        mClickPaint.setStrokeWidth(10f);
+
+        mTouchedBongPaint = new Paint();
+        mTouchedBongPaint.setAntiAlias(true);
 
         mPaint = new Paint();
         startColor = roundColors[0];
@@ -103,6 +107,12 @@ public class DropIndicator extends ViewGroup {
         mPaint.setStyle(Paint.Style.FILL);
         mPaint.setStrokeWidth(1);
         mPaint.setAntiAlias(true);
+
+        childrenRects = new Rect[roundColors.length];
+        for (int i = 0; i < childrenRects.length; i++) {
+            Rect item = new Rect();
+            childrenRects[i] = item;
+        }
     }
 
 
@@ -110,18 +120,18 @@ public class DropIndicator extends ViewGroup {
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         mWidth = w;
         mHeight = h;
-        div = (mWidth - 2 * tabNum * radius) / (tabNum + 1);
-        startX = div + radius;
+        div = (mWidth - 2 * tabNum * mRadius) / (tabNum + 1);
+        startX = div + mRadius;
         startY = mHeight / 2;
-        totalOff = (tabNum - 1) * (2 * radius + div) - radius;
+        totalOff = (tabNum - 1) * (2 * mRadius + div) - mRadius;
 
         if (currentPos == 0) {
-            radius = r * ratio;
+            mRadius = r * ratio;
             mc = (float) (c * ratio);
-            p1 = new YPoint(0, radius, mc);
-            p3 = new YPoint(0, -radius, mc);
-            p2 = new XPoint(radius, 0, mc);
-            p4 = new XPoint(-radius, 0, mc);
+            p1 = new YPoint(0, mRadius, mc);
+            p3 = new YPoint(0, -mRadius, mc);
+            p2 = new XPoint(mRadius, 0, mc);
+            p4 = new XPoint(-mRadius, 0, mc);
         }
         super.onSizeChanged(w, h, oldw, oldh);
     }
@@ -129,17 +139,14 @@ public class DropIndicator extends ViewGroup {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         float x = event.getX();
-        if (x > div + 2 * radius && x < (div + 2 * radius) * tabNum) {
+        float y = event.getY();
+        int toPos = getChildIndexByTouchPoint(x, y);
+        if (toPos != -1) {
             if (animator != null)
                 animator.cancel();
-            int toPos = (int) (x / (div + 2 * radius));
-            if (toPos != currentPos && toPos <= tabNum)
+            if (toPos != currentPos) {
                 startAniTo(currentPos, toPos);
-        } else if (x > div && x < div + 2 * radius) {
-            if (animator != null)
-                animator.cancel();
-            if (currentPos != 0)
-                startAniTo(currentPos, 0);
+            }
         }
         return super.onTouchEvent(event);
     }
@@ -156,9 +163,8 @@ public class DropIndicator extends ViewGroup {
         endColor = roundColors[(toPos) % 4];
         resetP();
 
-
-        startX = div + radius + (this.currentPos) * (div + 2 * radius);
-        distance = (toPos - this.currentPos) * (2 * radius + div) + (toPos > currentPos ? -radius : radius);
+        startX = div + mRadius + (this.currentPos) * (div + 2 * mRadius);
+        distance = (toPos - this.currentPos) * (2 * mRadius + div) + (toPos > currentPos ? -mRadius : mRadius);
 
         if (animator == null) {
             animator = ValueAnimator.ofFloat(0, 1.0f);
@@ -167,6 +173,8 @@ public class DropIndicator extends ViewGroup {
                 @Override
                 public void onAnimationUpdate(ValueAnimator animation) {
                     mCurrentTime = (float) animation.getAnimatedValue();
+                    float fraction = animation.getAnimatedFraction();
+                    bonging = fraction < 0.5;
                     invalidate();
                 }
             });
@@ -174,6 +182,7 @@ public class DropIndicator extends ViewGroup {
                 @Override
                 public void onAnimationStart(Animator animation) {
                     animating = true;
+                    bonging = true;
                     setTouchAble(!animating);
                 }
 
@@ -181,6 +190,7 @@ public class DropIndicator extends ViewGroup {
                 public void onAnimationEnd(Animator animation) {
                     goo();
                     animating = false;
+                    bonging = false;
                     setTouchAble(!animating);
                 }
 
@@ -188,8 +198,9 @@ public class DropIndicator extends ViewGroup {
                 public void onAnimationCancel(Animator animation) {
                     goo();
                     animating = false;
+                    bonging = false;
                     setTouchAble(!animating);
-                    mCurrentTime=1;
+                    mCurrentTime = 1;
                     invalidate();
                 }
 
@@ -213,22 +224,23 @@ public class DropIndicator extends ViewGroup {
     }
 
     private void resetP() {
-        p1.setY(radius);
+        p1.setY(mRadius);
         p1.setX(0);
         p1.setMc(mc);
 
-        p3.setY(-radius);
+        p3.setY(-mRadius);
         p3.setX(0);
         p3.setMc(mc);
 
         p2.setY(0);
-        p2.setX(radius);
+        p2.setX(mRadius);
         p2.setMc(mc);
 
         p4.setY(0);
-        p4.setX(-radius);
+        p4.setX(-mRadius);
         p4.setMc(mc);
     }
+
 
     private void goo() {
         currentPos = toPos;
@@ -238,60 +250,69 @@ public class DropIndicator extends ViewGroup {
     private int endColor;
     boolean direction = true;
 
+
     @Override
     protected void dispatchDraw(Canvas canvas) {
+        drawDropIndicator(canvas);
+        drawTouchBong(canvas);
+        super.dispatchDraw(canvas);
+    }
+
+    private void drawDropIndicator(Canvas canvas){
         canvas.save();
         mPath.reset();
         tabNum = getChildCount();
         for (int i = 0; i < tabNum; i++) {
-            canvas.drawCircle(div + radius + i * (div + 2 * radius), startY, radius, mPaintCircle);
+            if (!(bonging && i == toPos)) {
+                mPaintCircle.setColor(roundColors[i]);
+                canvas.drawCircle(div + mRadius + i * (div + 2 * mRadius), startY, mRadius, mPaintCircle);
+            }
         }
         if (mCurrentTime == 0) {
             resetP();
-            canvas.drawCircle(div + radius + (currentPos) * (div + 2 * radius), startY, 0, mClickPaint);
+            canvas.drawCircle(div + mRadius + (currentPos) * (div + 2 * mRadius), startY, 0, mClickPaint);
             mPaint.setColor(startColor);
             canvas.translate(startX, startY);
             if (toPos > currentPos) {
-                p2.setX(radius);
+                p2.setX(mRadius);
             } else {
-                p4.setX(-radius);
+                p4.setX(-mRadius);
             }
         }
+
         if (mCurrentTime > 0 && mCurrentTime <= 0.2) {
-            direction = toPos > currentPos ? true : false;
-            if (animating)
-                canvas.drawCircle(div + radius + (toPos) * (div + 2 * radius), startY, radius * 1.0f * 5 * mCurrentTime, mClickPaint);
+            direction = toPos > currentPos;
             canvas.translate(startX, startY);
             if (toPos > currentPos) {
-                p2.setX(radius + 2 * 5 * mCurrentTime * radius / 2);
+                p2.setX(mRadius + 2 * 5 * mCurrentTime * mRadius / 2);
             } else {
-                p4.setX(-radius - 2 * 5 * mCurrentTime * radius / 2);
+                p4.setX(-mRadius - 2 * 5 * mCurrentTime * mRadius / 2);
             }
         } else if (mCurrentTime > 0.2 && mCurrentTime <= 0.5) {
             canvas.translate(startX + (mCurrentTime - 0.2f) * distance / 0.7f, startY);
             if (toPos > currentPos) {
-                p2.setX(2 * radius);
-                p1.setX(0.5f * radius * (mCurrentTime - 0.2f) / 0.3f);
-                p3.setX(0.5f * radius * (mCurrentTime - 0.2f) / 0.3f);
+                p2.setX(2 * mRadius);
+                p1.setX(0.5f * mRadius * (mCurrentTime - 0.2f) / 0.3f);
+                p3.setX(0.5f * mRadius * (mCurrentTime - 0.2f) / 0.3f);
                 p2.setMc(mc + (mCurrentTime - 0.2f) * mc / 4 / 0.3f);
                 p4.setMc(mc + (mCurrentTime - 0.2f) * mc / 4 / 0.3f);
             } else {
-                p4.setX(-2 * radius);
-                p1.setX(-0.5f * radius * (mCurrentTime - 0.2f) / 0.3f);
-                p3.setX(-0.5f * radius * (mCurrentTime - 0.2f) / 0.3f);
+                p4.setX(-2 * mRadius);
+                p1.setX(-0.5f * mRadius * (mCurrentTime - 0.2f) / 0.3f);
+                p3.setX(-0.5f * mRadius * (mCurrentTime - 0.2f) / 0.3f);
                 p2.setMc(mc + (mCurrentTime - 0.2f) * mc / 4 / 0.3f);
                 p4.setMc(mc + (mCurrentTime - 0.2f) * mc / 4 / 0.3f);
             }
         } else if (mCurrentTime > 0.5 && mCurrentTime <= 0.8) {
             canvas.translate(startX + (mCurrentTime - 0.2f) * distance / 0.7f, startY);
             if (toPos > currentPos) {
-                p1.setX(0.5f * radius + 0.5f * radius * (mCurrentTime - 0.5f) / 0.3f);
-                p3.setX(0.5f * radius + 0.5f * radius * (mCurrentTime - 0.5f) / 0.3f);
+                p1.setX(0.5f * mRadius + 0.5f * mRadius * (mCurrentTime - 0.5f) / 0.3f);
+                p3.setX(0.5f * mRadius + 0.5f * mRadius * (mCurrentTime - 0.5f) / 0.3f);
                 p2.setMc(1.25f * mc - 0.25f * mc * (mCurrentTime - 0.5f) / 0.3f);
                 p4.setMc(1.25f * mc - 0.25f * mc * (mCurrentTime - 0.5f) / 0.3f);
             } else {
-                p1.setX(-0.5f * radius - 0.5f * radius * (mCurrentTime - 0.5f) / 0.3f);
-                p3.setX(-0.5f * radius - 0.5f * radius * (mCurrentTime - 0.5f) / 0.3f);
+                p1.setX(-0.5f * mRadius - 0.5f * mRadius * (mCurrentTime - 0.5f) / 0.3f);
+                p3.setX(-0.5f * mRadius - 0.5f * mRadius * (mCurrentTime - 0.5f) / 0.3f);
                 p2.setMc(1.25f * mc - 0.25f * mc * (mCurrentTime - 0.5f) / 0.3f);
                 p4.setMc(1.25f * mc - 0.25f * mc * (mCurrentTime - 0.5f) / 0.3f);
             }
@@ -300,43 +321,43 @@ public class DropIndicator extends ViewGroup {
             p4.setMc(mc);
             canvas.translate(startX + (mCurrentTime - 0.2f) * distance / 0.7f, startY);
             if (toPos > currentPos) {
-                p4.setX(-radius + 1.6f * radius * (mCurrentTime - 0.8f) / 0.1f);
+                p4.setX(-mRadius + 1.6f * mRadius * (mCurrentTime - 0.8f) / 0.1f);
             } else {
-                p2.setX(radius - 1.6f * radius * (mCurrentTime - 0.8f) / 0.1f);
+                p2.setX(mRadius - 1.6f * mRadius * (mCurrentTime - 0.8f) / 0.1f);
             }
         } else if (mCurrentTime > 0.9 && mCurrentTime < 1) {
             if (toPos > currentPos) {
-                p1.setX(radius);
-                p3.setX(radius);
+                p1.setX(mRadius);
+                p3.setX(mRadius);
                 canvas.translate(startX + distance, startY);
-                p4.setX(0.6f * radius - 0.6f * radius * (mCurrentTime - 0.9f) / 0.1f);
+                p4.setX(0.6f * mRadius - 0.6f * mRadius * (mCurrentTime - 0.9f) / 0.1f);
             } else {
-                p1.setX(-radius);
-                p3.setX(-radius);
+                p1.setX(-mRadius);
+                p3.setX(-mRadius);
                 canvas.translate(startX + distance, startY);
-                p2.setX(-0.6f * radius + 0.6f * radius * (mCurrentTime - 0.9f) / 0.1f);
+                p2.setX(-0.6f * mRadius + 0.6f * mRadius * (mCurrentTime - 0.9f) / 0.1f);
             }
         }
         if (mCurrentTime == 1) {
             lastCurrentTime = 0;
             mPaint.setColor(endColor);
             if (direction) {
-                p1.setX(radius);
-                p3.setX(radius);
+                p1.setX(mRadius);
+                p3.setX(mRadius);
                 canvas.translate(startX + distance, startY);
                 p4.setX(0);
             } else {
-                p1.setX(-radius);
-                p3.setX(-radius);
+                p1.setX(-mRadius);
+                p3.setX(-mRadius);
                 canvas.translate(startX + distance, startY);
                 p2.setX(0);
             }
             currentPos = toPos;
             resetP();
             if (direction)
-                canvas.translate(radius, 0);
+                canvas.translate(mRadius, 0);
             else
-                canvas.translate(-radius, 0);
+                canvas.translate(-mRadius, 0);
         }
         mPath.moveTo(p1.x, p1.y);
         mPath.cubicTo(p1.right.x, p1.right.y, p2.bottom.x, p2.bottom.y, p2.x, p2.y);
@@ -347,8 +368,91 @@ public class DropIndicator extends ViewGroup {
             mPaint.setColor(getCurrentColor(mCurrentTime, startColor, endColor));
         canvas.drawPath(mPath, mPaint);
         canvas.restore();
-        super.dispatchDraw(canvas);
     }
+
+    //绘制点击特效
+    private void drawTouchBong(Canvas canvas) {
+        if (bonging) {
+            canvas.save();
+            canvas.translate(div + mRadius + toPos * (div + 2 * mRadius), startY);
+            float percent;
+            if (mCurrentTime > 0 && mCurrentTime <= 0.15) {
+                percent = mCurrentTime / 0.15f;
+                drawRing(canvas, roundColors[toPos], percent);
+            } else if (mCurrentTime > 0.15 && mCurrentTime < 0.3) {
+                percent = (mCurrentTime - 0.15f) / 0.1f;
+                drawDot(canvas, roundColors[toPos], percent);
+            } else {
+                percent = (mCurrentTime - 0.3f) / 0.2f;
+                drawDotDisappear(canvas, roundColors[toPos], percent);
+            }
+            canvas.restore();
+        }
+    }
+
+    //绘制圆环
+    private void drawRing(Canvas canvas, int color, float percent) {
+        mTouchedBongPaint.setColor(color);
+        mTouchedBongPaint.setAntiAlias(true);
+        mTouchedBongPaint.setStyle(Paint.Style.STROKE);
+        mTouchedBongPaint.setStrokeWidth(0.4f * mRadius * (1f - percent));
+        float offsetR = 0.2f * mRadius * percent;
+        canvas.drawArc(-mRadius - offsetR, -mRadius - offsetR, mRadius + offsetR, mRadius + offsetR, 0, 360, false, mTouchedBongPaint);
+    }
+
+    private float rDotL;
+    private float rDotS;
+    private float dotRL;
+    private float dotRS;
+
+    private static final int[] dotColors = {0xffdaa9fa, 0xfff2bf4b, 0xffe3bca6, 0xff329aed,
+            0xffb1eb99, 0xff67c9ad, 0xffde6bac};
+
+    //绘制圆点
+    private void drawDot(Canvas canvas, int color, float percent) {
+        mTouchedBongPaint.setColor(color);
+        mTouchedBongPaint.setAntiAlias(true);
+        mTouchedBongPaint.setStyle(Paint.Style.FILL);
+        double angleA = 0;
+        double angleB = -Math.PI / 10;
+        dotRS = mRadius / 7;
+        dotRL = mRadius / 5;
+
+        rDotS = 1.3f * mRadius + 0.4f * percent;
+        rDotL = 1.3f * mRadius + 0.8f * percent;
+
+        for (int i = 0; i < 7; i++) {
+            mTouchedBongPaint.setColor(dotColors[i]);
+            canvas.drawCircle((float) (rDotS * Math.sin(angleA)), (float) (rDotS * Math.cos(angleA)),
+                    dotRS, mTouchedBongPaint);
+            angleA += 2 * Math.PI / 7;
+            canvas.drawCircle((float) (rDotL * Math.sin(angleB)), (float) (rDotL * Math.cos(angleB)),
+                    dotRL, mTouchedBongPaint);
+            angleB += 2 * Math.PI / 7;
+        }
+
+    }
+
+    //绘制圆点消失
+    private void drawDotDisappear(Canvas canvas, int color, float percent) {
+        mTouchedBongPaint.setColor(color);
+        mTouchedBongPaint.setAntiAlias(true);
+        mTouchedBongPaint.setStyle(Paint.Style.FILL);
+        double angleA = 0;
+        double angleB = -Math.PI / 10;
+        dotRS *= 1 - percent;
+        mTouchedBongPaint.setAlpha((int) (255 * (1 - percent)));
+        for (int i = 0; i < 7; i++) {
+            mTouchedBongPaint.setColor(dotColors[i]);
+            canvas.drawCircle((float) (rDotS * Math.sin(angleA)), (float) (rDotS * Math.cos(angleA)),
+                    dotRS, mTouchedBongPaint);
+            angleA += 2 * Math.PI / 7;
+            canvas.drawCircle((float) (rDotL * Math.sin(angleB)), (float) (rDotL * Math.cos(angleB)),
+                    dotRL, mTouchedBongPaint);
+            angleB += 2 * Math.PI / 7;
+        }
+    }
+
 
     private double g2 = 1.41421;
 
@@ -372,7 +476,9 @@ public class DropIndicator extends ViewGroup {
         tabNum = getChildCount();
         for (int i = 0; i < tabNum; i++) {
             View child = getChildAt(i);
-            child.layout((int) (div + (1 - scale * 1 / g2) * radius + i * (div + 2 * radius)), (int) (startY - scale * radius / g2), (int) (div + (1 + scale * 1 / g2) * radius + i * (div + 2 * radius)), (int) (startY + scale * radius / g2));
+            child.layout((int) (div + (1 - scale * 1 / g2) * mRadius + i * (div + 2 * mRadius)), (int) (startY - scale * mRadius / g2), (int) (div + (1 + scale * 1 / g2) * mRadius + i * (div + 2 * mRadius)), (int) (startY + scale * mRadius / g2));
+            int index = i % childrenRects.length;
+            child.getHitRect(childrenRects[index]);
         }
     }
 
@@ -395,18 +501,11 @@ public class DropIndicator extends ViewGroup {
                     e.printStackTrace();
                 }
 
-                if (onPageChangeListener != null) {
-                    onPageChangeListener.onPageScrolled(position, positionOffset, positionOffsetPixels);
-                }
-
             }
 
             @Override
             public void onPageScrollStateChanged(int state) {
                 viewPagerState = state;
-                if (onPageChangeListener != null) {
-                    onPageChangeListener.onPageScrollStateChanged(state);
-                }
             }
         });
     }
@@ -416,29 +515,42 @@ public class DropIndicator extends ViewGroup {
     private void updateDrop(int position, float positionOffset, int positionOffsetPixels) {
         if (animator != null)
             animator.cancel();
-        if ((position + positionOffset) - currentPos > 0)
+        if ((position + positionOffset) - currentPos > 0) {
             direction = true;
-        else if ((position + positionOffset) - currentPos < 0)
+        } else if ((position + positionOffset) - currentPos < 0) {
             direction = false;
+        }
+
         if (direction)
             toPos = currentPos + 1;
         else
             toPos = currentPos - 1;
+
+        if ((position + positionOffset) == currentPos) {
+            toPos = currentPos;
+            return;
+        }
+
         startColor = roundColors[(currentPos) % 4];
         endColor = roundColors[(currentPos + (direction ? 1 : -1)) % 4];
-        startX = div + radius + (currentPos) * (div + 2 * radius);
-        distance = direction ? ((2 * radius + div) + (direction ? -radius : radius)) : (-(2 * radius + div) + (direction ? -radius : radius));
+        startX = div + mRadius + (currentPos) * (div + 2 * mRadius);
+        distance = direction ? ((2 * mRadius + div) + -mRadius) : (-(2 * mRadius + div) + mRadius);
         mCurrentTime = position + positionOffset - (int) (position + positionOffset);
-        if (!direction)
+        if (!direction) {
             mCurrentTime = 1 - mCurrentTime;
-        if (Math.abs(lastCurrentTime - mCurrentTime) > 0.2) {
-            if (lastCurrentTime < 0.1)
+        }
+//        Log.e(TAG, "updateDrop###" + "position: " + position + ", positionOffset: " + positionOffset + ", currentPos: " + currentPos + ", toPos: " + toPos);
+//        Log.e("ouyang", "updateDrop## currentTime: " + mCurrentTime + ", lastCurrentTime: " + lastCurrentTime);
+        if (viewPagerState == ViewPager.SCROLL_STATE_SETTLING) {
+            if (lastCurrentTime < 0.1) {
                 mCurrentTime = 0;
-            else if (lastCurrentTime > 0.9)
+            } else if (lastCurrentTime > 0.9) {
                 mCurrentTime = 1;
+            }
         }
 
         lastCurrentTime = mCurrentTime;
+
         invalidate();
     }
 
@@ -553,20 +665,18 @@ public class DropIndicator extends ViewGroup {
         final float scale = mContext.getResources().getDisplayMetrics().density;
         return (int) (dpValue * scale + 0.5f);
     }
+
     float[][] f;
     float[] result;
     int[] colors = new int[4];
 
     public int getCurrentColor(float percent, int startColor, int endColor) {
-        colors[0] = startColor;
-        colors[1] = Color.GRAY;
-        colors[2] = Color.GRAY;
-        colors[3] = endColor;
-        for (int i = 0; i < colors.length; i++) {
-            f[i][0] = (colors[i] & 0xff0000) >> 16;
-            f[i][1] = (colors[i] & 0x00ff00) >> 8;
-            f[i][2] = (colors[i] & 0x0000ff);
-        }
+        f[0][0] = (startColor & 0xff0000) >> 16;
+        f[0][1] = (startColor & 0x00ff00) >> 8;
+        f[0][2] = (startColor & 0x0000ff);
+        f[1][0] = (endColor & 0xff0000) >> 16;
+        f[1][1] = (endColor & 0x00ff00) >> 8;
+        f[1][2] = (endColor & 0x0000ff);
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < f.length; j++) {
                 if (f.length == 1 || percent == j / (f.length - 1f)) {
@@ -579,6 +689,26 @@ public class DropIndicator extends ViewGroup {
             }
         }
         return Color.rgb((int) result[0], (int) result[1], (int) result[2]);
+    }
+
+    private float getCurrentValue(float original) {
+        Interpolator interpolator = new AccelerateInterpolator();
+        return interpolator.getInterpolation(original);
+    }
+
+    /**
+     * return: -1 means do not click any image view, else return i, the click view position
+     */
+    private int getChildIndexByTouchPoint(float x, float y) {
+        for (int i = 0; i < childrenRects.length; i++) {
+            Rect item = childrenRects[i];
+            if (item != null) {
+                if (x > item.left - 10 && x < item.right + 10) {
+                    return i;
+                }
+            }
+        }
+        return -1;
     }
 
 }
